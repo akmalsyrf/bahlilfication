@@ -1,7 +1,7 @@
 {
   "name": "bahlilfication",
   "version": "1.0.0",
-  "description": "Transform any image into bahlilfication - fullstack Next.js app",
+  "description": "Transform any image into bahlilfied - fullstack Next.js app",
   "private": true,
   "scripts": {
     "dev": "next dev",

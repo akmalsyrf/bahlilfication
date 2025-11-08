@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 
 const ParticleTransition = dynamic(() => import('@/components/ParticleTransition'), {
   ssr: false,
@@ -12,12 +13,18 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [finalProcessedUrl, setFinalProcessedUrl] = useState<string | null>(null);
   const [transitionImage, setTransitionImage] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showingOriginal, setShowingOriginal] = useState(false); // NEW: show original before animation
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [processingTime, setProcessingTime] = useState<number | null>(null);
+
+  const animateTransition = useCallback((fromUrl: string, toUrl: string) => {
+    // Use transparent target-face as the convergence mask for particles
+    setTransitionImage(toUrl);
+  }, []);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -34,8 +41,11 @@ export default function Home() {
 
     // Show original image
     const reader = new FileReader();
+    let currentOriginalImage: string | null = null;
     reader.onload = (e) => {
-      setOriginalImage(e.target?.result as string);
+      const imageUrl = e.target?.result as string;
+      currentOriginalImage = imageUrl;
+      setOriginalImage(imageUrl);
     };
     reader.readAsDataURL(file);
 
@@ -70,18 +80,16 @@ export default function Home() {
       // Start transition animation
       setShowingOriginal(false);
       setIsTransitioning(true);
-      animateTransition(originalImage!, finalUrl);
+      setFinalProcessedUrl(finalUrl);
+      // Wait for originalImage to be set, then use it
+      await new Promise(resolve => setTimeout(resolve, 100));
+      animateTransition(currentOriginalImage || originalImage || '', '/target-face.png'); // use mask with transparent bg
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
     }
-  }, []);
-
-  const animateTransition = useCallback((fromUrl: string, toUrl: string) => {
-    // Just set the images and let ParticleTransition component handle animation
-    setTransitionImage(toUrl);
-  }, []);
+  }, [animateTransition, originalImage]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -121,7 +129,7 @@ export default function Home() {
             bahlilfication
           </h1>
           <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-2">
-            Transform any image into bahlilfication
+            Transform any image into bahlilfied
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Inspired by{' '}
@@ -196,10 +204,12 @@ export default function Home() {
                   Original
                 </h2>
                 <div className="relative aspect-square rounded-2xl overflow-hidden shadow-2xl border-4 border-gray-200 dark:border-gray-700">
-                  <img
+                  <Image
                     src={originalImage}
                     alt="Original"
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
+                    unoptimized
                   />
                 </div>
               </div>
@@ -218,10 +228,12 @@ export default function Home() {
                   {uploading ? (
                     <div className="relative w-full h-full">
                       {/* Show original image in background while processing */}
-                      <img
+                      <Image
                         src={originalImage!}
                         alt="Processing"
-                        className="w-full h-full object-cover opacity-50"
+                        fill
+                        className="object-cover opacity-50"
+                        unoptimized
                       />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                         <div className="text-center space-y-4">
@@ -235,10 +247,12 @@ export default function Home() {
                   ) : showingOriginal ? (
                     <div className="relative w-full h-full">
                       {/* Show clean original image after processing */}
-                      <img
+                      <Image
                         src={originalImage!}
                         alt="Original - Ready for animation"
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        unoptimized
                       />
                       <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-full text-sm font-bold shadow-lg animate-bounce">
                         ✓ Processing Complete! Starting animation...
@@ -254,7 +268,9 @@ export default function Home() {
                         duration={3000}
                         onComplete={() => {
                           setIsTransitioning(false);
-                          setProcessedImage(transitionImage);
+                          if (finalProcessedUrl) {
+                            setProcessedImage(finalProcessedUrl);
+                          }
                           setTransitionImage(null);
                         }}
                       />
@@ -263,10 +279,12 @@ export default function Home() {
                       </div>
                     </div>
                   ) : processedImage ? (
-                    <img
+                    <Image
                       src={processedImage}
                       alt="Processed"
-                      className="w-full h-full object-cover animate-fade-in"
+                      fill
+                      className="object-cover animate-fade-in"
+                      unoptimized
                     />
                   ) : null}
                 </div>

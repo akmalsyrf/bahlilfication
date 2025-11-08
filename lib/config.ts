@@ -20,6 +20,19 @@ export const config = {
     quality: parseInt(process.env.OUTPUT_QUALITY || '90', 10),
   },
   
+  // Color policy
+  // When true, we avoid post-processing that could alter source colors,
+  // preserving exact input pixel colors in the final image.
+  strictColorPreservation: process.env.STRICT_COLOR_PRESERVATION !== 'false',
+  
+  // Mosaic look configuration (to emphasize "built from uploaded pixels")
+  mosaic: {
+    // Size of square tiles in pixels (higher = coarser, more blocky)
+    blockSize: parseInt(process.env.MOSAIC_BLOCK_SIZE || '6', 10),
+    // Random jitter applied to tile placement (0..blockSize/2 recommended)
+    jitter: parseInt(process.env.MOSAIC_JITTER || '2', 10),
+  },
+  
   // Debug
   debug: process.env.DEBUG === 'true',
   

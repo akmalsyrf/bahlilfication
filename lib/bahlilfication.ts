@@ -57,30 +57,43 @@ export async function bahlilfy(inputBuffer: Buffer): Promise<ProcessingResult> {
         normalizedInput,
         targetFaceBuffer,
         inputMetadata.width,
-        inputMetadata.height
+        inputMetadata.height,
+        {
+          mosaicBlockSize: config.mosaic.blockSize,
+          jitter: config.mosaic.jitter,
+          sampleStep: config.mosaic.blockSize,
+        }
       );
       
-      // Post-process for enhancement
-      const processed = await sharp(rearrangedBuffer)
-        // Enhance colors for vibrant look
-        .modulate({
-          brightness: 1.1,
-          saturation: 1.2,
-        })
-        
-        // Sharpen for clarity
-        .sharpen({
-          sigma: 1.0,
-        })
-        
-        // Add slight contrast
-        .linear(1.1, -(128 * 0.1))
-        
-        // Convert to output format
+      // Composite rearranged face (transparent background) over original uploaded image
+      const baseWithBg = await sharp(normalizedInput)
+        .ensureAlpha()
+        .toBuffer();
+      
+      const composited = await sharp(baseWithBg)
+        .composite([{ input: rearrangedBuffer }])
+        .toBuffer();
+      
+      // Post-process
+      // If strictColorPreservation is enabled, emit as-is (no color changes)
+      // Otherwise, apply gentle enhancement for vibrancy
+      const pipeline = sharp(composited);
+      if (!config.strictColorPreservation) {
+        pipeline
+          .modulate({
+            brightness: 1.1,
+            saturation: 1.2,
+          })
+          .sharpen({
+            sigma: 1.0,
+          })
+          .linear(1.05, -(128 * 0.05));
+      }
+      
+      const processed = await pipeline
         .toFormat(config.output.format, {
           quality: config.output.quality,
         })
-        
         .toBuffer({ resolveWithObject: true });
       
       return {
