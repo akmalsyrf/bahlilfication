@@ -27,8 +27,11 @@ export interface ProcessingResult {
  * 
  * PIXEL REARRANGEMENT: Takes every pixel and rearranges them to form target face
  * Like the Obama algorithm - mathematically optimal pixel mapping!
+ * 
+ * @param inputBuffer - Input image buffer
+ * @param useOriginalBackground - If false, return only rearranged face without original background (default: true)
  */
-export async function bahlilfy(inputBuffer: Buffer): Promise<ProcessingResult> {
+export async function bahlilfy(inputBuffer: Buffer, useOriginalBackground: boolean = true): Promise<ProcessingResult> {
   try {
     // Load input image and get metadata
     const inputImage = sharp(inputBuffer);
@@ -66,13 +69,21 @@ export async function bahlilfy(inputBuffer: Buffer): Promise<ProcessingResult> {
       );
       
       // Composite rearranged face (transparent background) over original uploaded image
-      const baseWithBg = await sharp(normalizedInput)
-        .ensureAlpha()
-        .toBuffer();
+      // Or use only rearranged face if useOriginalBackground is false
+      let composited: Buffer;
       
-      const composited = await sharp(baseWithBg)
-        .composite([{ input: rearrangedBuffer }])
-        .toBuffer();
+      if (useOriginalBackground) {
+        const baseWithBg = await sharp(normalizedInput)
+          .ensureAlpha()
+          .toBuffer();
+        
+        composited = await sharp(baseWithBg)
+          .composite([{ input: rearrangedBuffer }])
+          .toBuffer();
+      } else {
+        // Use only rearranged face without original background
+        composited = rearrangedBuffer;
+      }
       
       // Post-process
       // If strictColorPreservation is enabled, emit as-is (no color changes)

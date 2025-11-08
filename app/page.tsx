@@ -4,12 +4,16 @@ import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import DrawingEditor from '@/components/DrawingEditor';
 
 const ParticleTransition = dynamic(() => import('@/components/ParticleTransition'), {
   ssr: false,
 });
 
+type InputMode = 'upload' | 'draw';
+
 export default function Home() {
+  const [inputMode, setInputMode] = useState<InputMode>('upload');
   const [uploading, setUploading] = useState(false);
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
@@ -49,10 +53,11 @@ export default function Home() {
     };
     reader.readAsDataURL(file);
 
-    // Upload and process
+    // Upload and process (upload mode: use original background)
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('useOriginalBackground', 'true'); // Use original as background for uploads
 
     try {
       const startTime = Date.now();
@@ -110,6 +115,143 @@ export default function Home() {
     a.click();
   };
 
+  // Reprocess original image
+  const reprocessImage = useCallback(async () => {
+    if (!originalImage) return;
+
+    // Reset processing state
+    setError(null);
+    setProcessedImage(null);
+    setTransitionImage(null);
+    setIsTransitioning(false);
+    setShowingOriginal(false);
+    setTransitionProgress(0);
+    setProcessingTime(null);
+
+    // Check if originalImage is a data URL (from drawing) or blob URL (from upload)
+    let file: File;
+    
+    if (originalImage.startsWith('data:')) {
+      // Data URL (from drawing)
+      const response = await fetch(originalImage);
+      const blob = await response.blob();
+      file = new File([blob], 'image.png', { type: 'image/png' });
+    } else {
+      // Blob URL (from upload) - need to fetch and convert
+      const response = await fetch(originalImage);
+      const blob = await response.blob();
+      // Try to preserve original file type
+      const fileType = blob.type || 'image/png';
+      file = new File([blob], 'image.png', { type: fileType });
+    }
+
+    // Upload and process (reprocess: preserve original mode - check if from drawing)
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    // Preserve original mode: if originalImage is data URL, it's from drawing
+    const isFromDrawing = originalImage.startsWith('data:');
+    formData.append('useOriginalBackground', isFromDrawing ? 'false' : 'true');
+
+    try {
+      const startTime = Date.now();
+      const apiResponse = await fetch('/api/bahlilfy', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json();
+        throw new Error(errorData.error || 'Processing failed');
+      }
+
+      const resultBlob = await apiResponse.blob();
+      const finalUrl = URL.createObjectURL(resultBlob);
+      
+      const time = Date.now() - startTime;
+      setProcessingTime(time);
+      
+      // Processing complete! Show original image for 1 second
+      setUploading(false);
+      setShowingOriginal(true);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Start transition animation
+      setShowingOriginal(false);
+      setIsTransitioning(true);
+      setFinalProcessedUrl(finalUrl);
+      // Wait for originalImage to be set, then use it
+      await new Promise(resolve => setTimeout(resolve, 100));
+      animateTransition(originalImage, '/target-face.png');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reprocessing failed');
+    } finally {
+      setUploading(false);
+    }
+  }, [originalImage, animateTransition]);
+
+  // Process image from data URL (for drawing)
+  const processImageFromDataUrl = useCallback(async (dataUrl: string) => {
+    // Reset state
+    setError(null);
+    setProcessedImage(null);
+    setTransitionImage(null);
+    setIsTransitioning(false);
+    setShowingOriginal(false);
+    setTransitionProgress(0);
+    setProcessingTime(null);
+
+    // Set original image
+    setOriginalImage(dataUrl);
+
+    // Convert data URL to File
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const file = new File([blob], 'drawing.png', { type: 'image/png' });
+
+    // Upload and process (drawing mode: don't use original background)
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('useOriginalBackground', 'false'); // Don't use original as background for drawings
+
+    try {
+      const startTime = Date.now();
+      const apiResponse = await fetch('/api/bahlilfy', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json();
+        throw new Error(errorData.error || 'Processing failed');
+      }
+
+      const resultBlob = await apiResponse.blob();
+      const finalUrl = URL.createObjectURL(resultBlob);
+      
+      const time = Date.now() - startTime;
+      setProcessingTime(time);
+      
+      // Processing complete! Show original image for 1 second
+      setUploading(false);
+      setShowingOriginal(true);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Start transition animation
+      setShowingOriginal(false);
+      setIsTransitioning(true);
+      setFinalProcessedUrl(finalUrl);
+      // Wait for originalImage to be set, then use it
+      await new Promise(resolve => setTimeout(resolve, 100));
+      animateTransition(dataUrl, '/target-face.png');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Processing failed');
+    } finally {
+      setUploading(false);
+    }
+  }, [animateTransition]);
+
   const reset = () => {
     setOriginalImage(null);
     setProcessedImage(null);
@@ -118,6 +260,7 @@ export default function Home() {
     setTransitionProgress(0);
     setError(null);
     setProcessingTime(null);
+    setInputMode('upload');
   };
 
   return (
@@ -129,62 +272,94 @@ export default function Home() {
             bahlilfication
           </h1>
           <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-2">
-            Transform any image into bahlilfied
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Inspired by{' '}
-            <a
-              href="https://www.instagram.com/reel/DQl5qErDaBc/?igsh=MW5iMGgwaW1sOG5rYw=="
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-purple-600"
-            >
-              this reel
-            </a>
+            Transform any image or drawing into bahlilfied
           </p>
         </div>
 
-        {/* Upload Area */}
+        {/* Mode Selection & Input Area */}
         {!originalImage && (
-          <div className="max-w-2xl mx-auto animate-slide-up">
-            <div
-              {...getRootProps()}
-              className={`
-                border-4 border-dashed rounded-2xl p-12 md:p-20 text-center cursor-pointer
-                transition-all duration-300 ease-in-out
-                ${
-                  isDragActive
-                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-105'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800'
-                }
-              `}
-            >
-              <input {...getInputProps()} />
-              <div className="space-y-4">
-                <svg
-                  className="mx-auto h-16 w-16 text-gray-400"
-                  stroke="currentColor"
-                  fill="none"
-                  viewBox="0 0 48 48"
-                  aria-hidden="true"
+          <div className="max-w-4xl mx-auto animate-slide-up">
+            {/* Mode Toggle */}
+            <div className="flex justify-center mb-8">
+              <div className="inline-flex rounded-lg bg-white dark:bg-gray-800 p-1 shadow-md border border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setInputMode('upload')}
+                  className={`px-6 py-3 rounded-md font-semibold transition-all ${
+                    inputMode === 'upload'
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400'
+                  }`}
                 >
-                  <path
-                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <div>
-                  <p className="text-xl font-semibold text-gray-700 dark:text-gray-200">
-                    {isDragActive ? 'Drop your image here' : 'Drop an image or click to upload'}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                    JPEG, PNG, or WebP (max 10MB)
-                  </p>
-                </div>
+                  📤 Upload Image
+                </button>
+                <button
+                  onClick={() => setInputMode('draw')}
+                  className={`px-6 py-3 rounded-md font-semibold transition-all ${
+                    inputMode === 'draw'
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400'
+                  }`}
+                >
+                  ✏️ Draw
+                </button>
               </div>
             </div>
+
+            {/* Upload Mode */}
+            {inputMode === 'upload' && (
+              <div className="max-w-2xl mx-auto">
+                <div
+                  {...getRootProps()}
+                  className={`
+                    border-4 border-dashed rounded-2xl p-12 md:p-20 text-center cursor-pointer
+                    transition-all duration-300 ease-in-out
+                    ${
+                      isDragActive
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-105'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }
+                  `}
+                >
+                  <input {...getInputProps()} />
+                  <div className="space-y-4">
+                    <svg
+                      className="mx-auto h-16 w-16 text-gray-400"
+                      stroke="currentColor"
+                      fill="none"
+                      viewBox="0 0 48 48"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <div>
+                      <p className="text-xl font-semibold text-gray-700 dark:text-gray-200">
+                        {isDragActive ? 'Drop your image here' : 'Drop an image or click to upload'}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                        JPEG, PNG, or WebP (max 10MB)
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-3 flex items-center justify-center gap-1">
+                        <span>🔒</span>
+                        <span>Your images are processed in memory and never saved</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Draw Mode */}
+            {inputMode === 'draw' && (
+              <DrawingEditor
+                onImageReady={processImageFromDataUrl}
+                className="w-full"
+              />
+            )}
 
             {error && (
               <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -307,10 +482,17 @@ export default function Home() {
                     Download Result
                   </button>
                   <button
+                    onClick={reprocessImage}
+                    disabled={uploading || !originalImage}
+                    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  >
+                    {uploading ? 'Processing...' : '🔄 Reprocess'}
+                  </button>
+                  <button
                     onClick={reset}
                     className="px-8 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300"
                   >
-                    Upload Another
+                    Start Over
                   </button>
                 </div>
               </div>
@@ -331,17 +513,21 @@ export default function Home() {
         )}
 
         {/* Footer */}
-        <footer className="mt-16 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p>
-            Reference:{' '}
+        <footer className="mt-16 text-center text-sm text-gray-500 dark:text-gray-400 space-y-2">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Inspired by{' '}
             <a
               href="https://www.instagram.com/reel/DQl5qErDaBc/?igsh=MW5iMGgwaW1sOG5rYw=="
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:text-purple-600"
             >
-              Instagram reel
+              this reel
             </a>
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center justify-center gap-1">
+            <span>🔒</span>
+            <span>Privacy protected: Images processed in memory, never saved</span>
           </p>
         </footer>
       </div>

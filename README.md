@@ -1,6 +1,6 @@
 # bahlilfication
 
-Transform any image into **bahlilfication** - a fullstack Next.js app inspired by [this reel](https://www.instagram.com/reel/DQl5qErDaBc/?igsh=MW5iMGgwaW1sOG5rYw==).
+Transform any image or drawing into **bahlilfied** - a fullstack Next.js app inspired by [this reel](https://www.instagram.com/reel/DQl5qErDaBc/?igsh=MW5iMGgwaW1sOG5rYw==).
 
 Upload any image, and watch **every pixel get rearranged** to form your target face:
 - 🧬 **Pixel Rearrangement Algorithm** - like the Obama reel!
@@ -12,14 +12,14 @@ Upload any image, and watch **every pixel get rearranged** to form your target f
 ## Features
 
 - 🖼️ **Drag & drop image upload**
+- 🎨 **Draw your own image**
 - ⚡ **Fast server-side processing** with Sharp
 - ✨ **Particle convergence animation** - physics-based particles flow to form target face!
 - 🎨 **Beautiful modern UI** with Tailwind CSS
 - 📱 **Fully responsive** design
-- 🌙 **Dark mode** support
 - ⬇️ **One-click download** of results
 - 📊 **Progress indicator** during transformation
-- 🚀 **Deploy-ready** for Vercel
+- 🔒 **Privacy-first**: Images are processed in memory and never saved to disk
 
 ## Quick Start
 
@@ -31,7 +31,6 @@ Upload any image, and watch **every pixel get rearranged** to form your target f
 2. Place it in the `/public` directory
 3. Recommended: Square image (e.g., 1024x1024), PNG format
 
-See `/public/README_TARGET_FACE.md` for details.
 
 ### 2. Install Dependencies
 
@@ -104,6 +103,8 @@ Upload an image for transformation.
 - Success: Binary image data (PNG)
 - Headers: Processing time, dimensions
 
+**Privacy Note:** 🔒 Images are processed entirely in memory and are never saved to disk or any storage system. Your privacy is protected.
+
 **Example:**
 
 ```bash
@@ -123,25 +124,6 @@ MAX_FILE_SIZE=10485760           # 10MB default
 OUTPUT_FORMAT=png                # Output format
 OUTPUT_QUALITY=90                # Quality 1-100
 DEBUG=false                      # Debug logging
-```
-
-## Deploy to Vercel
-
-### One-Click Deploy
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/bahlilfication)
-
-### Manual Deploy
-
-```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Deploy
-vercel
-
-# Production
-vercel --prod
 ```
 
 **Important**: Make sure to add `target-face.png` to your repository or upload it to Vercel's file system.
@@ -223,8 +205,6 @@ const faceHeight = Math.floor(inputMetadata.height * 0.85);
 }])
 ```
 
-See `REEL_EFFECT_GUIDE.md` for detailed customization!
-
 ### Change UI Colors
 
 Edit `app/page.tsx` or `tailwind.config.ts` to customize the color scheme.
@@ -238,16 +218,6 @@ Edit `app/page.tsx` or `tailwind.config.ts` to customize the color scheme.
 - [ ] Batch processing
 - [ ] Video support
 - [ ] Social sharing
-
-## Documentation
-
-Full documentation is available in `/docs`:
-
-- Architecture
-- API Reference
-- Deployment Guide
-- Effects Specification
-- Testing & QA
 
 ## Troubleshooting
 
@@ -267,13 +237,8 @@ Run `npm install` to install all dependencies.
 
 ## Support
 
-- Documentation: `/docs`
-- Issues: [GitHub Issues](your-repo/issues)
+- Issues: [GitHub Issues](https://github.com/akmalsyrf/bahlilfication/issues)
 - Reference reel: [Instagram](https://www.instagram.com/reel/DQl5qErDaBc/?igsh=MW5iMGgwaW1sOG5rYw==)
-
-## License
-
-See `docs/legal/license-and-credits.md`
 
 ---
 

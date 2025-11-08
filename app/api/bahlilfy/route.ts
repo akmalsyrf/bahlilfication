@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     // Parse form data
     const formData = await request.formData();
     const file = formData.get('file');
+    const useOriginalBackground = formData.get('useOriginalBackground') !== 'false';
     
     // Validate input
     if (!file || !(file instanceof File)) {
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       filename: file.name,
       size: file.size,
       type: file.type,
+      useOriginalBackground,
     });
     
     // Convert File to Buffer
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
     
     // Process the image
-    const result = await bahlilfy(buffer);
+    const result = await bahlilfy(buffer, useOriginalBackground);
     
     const processingTime = Date.now() - startTime;
     
